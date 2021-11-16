@@ -33,3 +33,22 @@ pg_typed!(
 unsafe impl<T: PgTyped> PgTyped for Option<T> {
     const SQL_TYPE: &'static str = <T as PgTyped>::SQL_TYPE;
 }
+
+pub trait UnwrapTo<T> {
+    #[track_caller]
+    fn unwrap_to(self) -> T;
+}
+
+impl<T> UnwrapTo<T> for Option<T> {
+    #[track_caller]
+    fn unwrap_to(self) -> T {
+        self.expect("unexpected NULL value")
+    }
+}
+
+impl<T> UnwrapTo<Option<T>> for Option<T> {
+    #[track_caller]
+    fn unwrap_to(self) -> Option<T> {
+        self
+    }
+}

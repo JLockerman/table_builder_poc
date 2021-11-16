@@ -70,8 +70,10 @@ impl Query {
         let mut field_idx = 0usize;
         let field_reads = fields.iter().map(|field| {
             field_idx += 1;
+            let optional_name = super::optional_name(field);
             quote! {
-                let #field: Option<#mod_name::#field> = __tuple.by_ordinal(#field_idx).unwrap().value();
+                let #field: #mod_name::#optional_name = __tuple.by_ordinal(#field_idx).unwrap().value();
+                let #field: #mod_name::#field = <_ as framework::UnwrapTo<_>>::unwrap_to(#field);
             }
         });
 

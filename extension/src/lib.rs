@@ -61,7 +61,6 @@ mod tests {
                 select: (key, value)
             );
             for (key, val) in values {
-                let key = key.unwrap();
                 assert_eq!(val, expected[&*key]);
             }
             Ok(Some(()))

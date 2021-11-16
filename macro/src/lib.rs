@@ -32,3 +32,7 @@ mod query_builder;
 fn table_mod(name: &proc_macro2::Ident) -> proc_macro2::Ident {
     syn::Ident::new(&format!("_{}_table_mod", name), name.span())
 }
+
+fn optional_name(name: &syn::Ident) -> syn::Ident {
+    syn::Ident::new(&format!("_optional_{}", name), name.span())
+}

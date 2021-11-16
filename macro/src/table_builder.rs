@@ -65,9 +65,11 @@ pub fn expand(agg: Table) -> TokenStream2 {
 
     let mod_name = super::table_mod(&name);
     let field_types = fields.iter().map(|Field {name, ty}| {
-        let ty = root_type(ty);
+        let optional_name = super::optional_name(name);
+        let optional_ty = option_type(ty);
         quote! {
             pub type #name = #ty;
+            pub type #optional_name = #optional_ty;
         }
     });
 
@@ -143,15 +145,6 @@ fn sql_type(ty: &syn::TypePath) -> (&'static str, bool) {
     }
 }
 
-fn root_type(ty: &syn::TypePath) -> &syn::TypePath {
-    let end = ty.path.segments.last().unwrap();
-    if end.ident != "Option" {
-        return ty;
-    }
-
-    return option_contents(end)
-}
-
 fn option_contents(end: &syn::PathSegment) -> &syn::TypePath {
     let args = match &end.arguments {
         syn::PathArguments::AngleBracketed(args) => &args.args,
@@ -166,4 +159,13 @@ fn option_contents(end: &syn::PathSegment) -> &syn::TypePath {
         _ => unimplemented!()
     };
     ty
+}
+
+fn option_type(ty: &syn::TypePath) -> TokenStream2 {
+    let end = ty.path.segments.last().unwrap();
+    if end.ident == "Option" {
+        return quote! { #ty };
+    }
+
+    quote! { Option<#ty> }
 }
