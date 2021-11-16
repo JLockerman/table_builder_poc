@@ -1,0 +1,5 @@
+comment = 'table_builder:  Created by pgx'
+default_version = '1.0'
+module_pathname = '$libdir/table_builder'
+relocatable = false
+superuser = false
