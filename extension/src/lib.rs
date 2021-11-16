@@ -45,14 +45,12 @@ mod tests {
             ]);
 
             for (key, value) in expected.iter() {
-                // TODO learn how SPI args work
-                client.select(&format!(
-                        "INSERT INTO KeyValueTable VALUES ('{}', {})",
-                        key,
-                        value.unwrap(),
-                    ),
+                client.select("INSERT INTO KeyValueTable VALUES ($1, $2)",
                     None,
-                    None
+                    Some(vec![
+                        (PgBuiltInOids::TEXTOID.oid(), key.into_datum()),
+                        (PgBuiltInOids::INT4OID.oid(), value.into_datum()),
+                    ])
                 );
             }
 
