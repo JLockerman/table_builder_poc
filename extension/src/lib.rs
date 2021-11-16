@@ -42,6 +42,7 @@ mod tests {
                 ("31", Some(31)),
                 ("2", Some(2)),
                 ("", Some(0)),
+                ("foo", Some(111)),
             ]);
 
             for (key, value) in expected.iter() {
@@ -57,14 +58,17 @@ mod tests {
             let values = query!(client
                 from: KeyValueTable
                 select: (key, value)
+                where: "key <> 'foo'"
             );
+            let mut count = 0;
             for (key, val) in values {
                 assert_eq!(val, expected[&*key]);
+                count += 1;
             }
+            assert_eq!(count, expected.len() - 1);
             Ok(Some(()))
         });
     }
-
 }
 
 #[cfg(test)]

@@ -9,6 +9,7 @@ pub struct Query {
     spi_client: syn::Ident,
     table: syn::Ident,
     fields: Punctuated<syn::Ident, syn::Token![,]>,
+    where_clause: Option<syn::LitStr>,
 }
 
 impl Parse for Query {
@@ -22,10 +23,19 @@ impl Parse for Query {
         let content;
         let _ = syn::parenthesized!(content in input);
         let fields = Punctuated::parse_terminated(&content)?;
+
+        let mut where_clause = None;
+        if input.peek(syn::Token![where]) {
+            let _: syn::Token![where] = input.parse()?;
+            let _: syn::Token![:] = input.parse()?;
+            where_clause = Some(input.parse()?);
+        }
+
         Ok(Self {
             spi_client,
             table,
             fields,
+            where_clause,
         })
     }
 }
@@ -45,7 +55,7 @@ impl Query {
     pub(crate) fn expand(&self) -> TokenStream2 {
         use std::fmt::Write as _;
 
-        let Query { spi_client, table, fields } = self;
+        let Query { spi_client, table, fields, where_clause } = self;
         let mod_name = super::table_mod(&table);
 
         let mut query_string = "SELECT ".to_string();
@@ -61,6 +71,9 @@ impl Query {
             let _ = write!(&mut query_string, "{field}::{{{field}}}", field=field);
         }
         let _ = write!(&mut query_string, " FROM {}", table);
+        if let Some(where_clause) = where_clause {
+            let _ = write!(&mut query_string, " WHERE {}", where_clause.value());
+        }
 
         let column_types = fields.iter().map(|field| quote!{
             #field = <#mod_name::#field as framework::PgTyped>::SQL_TYPE
