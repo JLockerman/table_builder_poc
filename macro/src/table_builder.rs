@@ -73,6 +73,10 @@ pub fn expand(agg: Table) -> TokenStream2 {
         }
     });
 
+    let field_ty = fields.iter().map(|Field {ty, ..}| ty);
+    let field_name = fields.iter().map(|Field {name, ..}| name);
+    let field = fields.iter().map(|Field {name, ..}| name);
+
     let create_table_name = format!("__CREATE_TABLE_{}", name);
 
     quote! {
@@ -87,6 +91,19 @@ pub fn expand(agg: Table) -> TokenStream2 {
         #[allow(non_camel_case_types)]
         mod #mod_name {
             #(#field_types)*
+        }
+
+        impl #name {
+            pub fn to_values_vec(self) -> Vec<(pgx::PgOid, Option<pgx::pg_sys::Datum>)> {
+                use pgx::IntoDatum;
+                let Self{ #(#field_name),* } = self;
+                vec![
+                    #((
+                        pgx::PgOid::from(<#field_ty as pgx::IntoDatum>::type_oid()),
+                        #field.into_datum()
+                    ),)*
+                ]
+            }
         }
 
         pgx::extension_sql! {

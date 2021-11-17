@@ -37,7 +37,7 @@ mod tests {
 
     #[pg_test]
     fn test_query() {
-        Spi::connect(|client| {
+        Spi::connect(|mut client| {
             let expected = HashMap::from([
                 ("31", Some(31)),
                 ("2", Some(2)),
@@ -45,15 +45,21 @@ mod tests {
                 ("foo", Some(111)),
             ]);
 
-            for (key, value) in expected.iter() {
-                client.select("INSERT INTO KeyValueTable VALUES ($1, $2)",
-                    None,
-                    Some(vec![
-                        (PgBuiltInOids::TEXTOID.oid(), key.into_datum()),
-                        (PgBuiltInOids::INT4OID.oid(), value.into_datum()),
-                    ])
-                );
-            }
+            query!(client
+                insert into: KeyValueTable
+                value: KeyValueTable {
+                    key: "111".to_string(),
+                    value: Some(6),
+                }
+            );
+
+            query!(client
+                insert into: KeyValueTable
+                values: expected.iter().map(|(key, value)| KeyValueTable {
+                    key: key.to_string(),
+                    value: value.clone(),
+                })
+            );
 
             let values = query!(client
                 from: KeyValueTable
@@ -62,10 +68,14 @@ mod tests {
             );
             let mut count = 0;
             for (key, val) in values {
-                assert_eq!(val, expected[&*key]);
+                if key == "111" {
+                    assert_eq!(val, Some(6));
+                } else {
+                    assert_eq!(val, expected[&*key]);
+                }
                 count += 1;
             }
-            assert_eq!(count, expected.len() - 1);
+            assert_eq!(count, expected.len());
             Ok(Some(()))
         });
     }
