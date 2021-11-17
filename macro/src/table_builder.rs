@@ -3,11 +3,13 @@ use proc_macro2::TokenStream as TokenStream2;
 
 use quote::quote;
 
-use syn::{parse::{Parse, ParseStream}, punctuated::Punctuated};
+use syn::{parse::{Parse, ParseStream}, punctuated::Punctuated, spanned::Spanned};
 
 pub struct Table {
     name: syn::Ident,
     fields: Punctuated<Field, syn::Token![,]>,
+    insert: Option<syn::Block>,
+    requires: Option<syn::ExprArray>,
 }
 
 struct Field {
@@ -21,9 +23,31 @@ impl Parse for Table {
         let content;
         let _ = syn::parenthesized!(content in input);
         let fields = Punctuated::parse_terminated(&content)?;
+
+        let mut insert: Option<syn::Block> = None;
+        let mut requires: Option<syn::ExprArray> = None;
+        super::parse_marked(input, [
+            ("insert", &mut |input| {
+                if insert.is_some() {
+                    panic!("duplicate `insert`")
+                }
+                insert = Some(input.parse()?);
+                Ok(())
+            }),
+            ("requires", &mut |input| {
+                if requires.is_some() {
+                    panic!("duplicate `requires`")
+                }
+                requires = Some(input.parse()?);
+                Ok(())
+            })
+        ])?;
+
         Ok(Self {
             name,
             fields,
+            insert,
+            requires,
         })
     }
 }
@@ -47,14 +71,16 @@ impl Parse for Field {
 //
 
 pub fn expand(agg: Table) -> TokenStream2 {
-    let Table{ name, fields } = agg;
+    use std::fmt::Write;
+
+    let Table{ name, fields, insert, requires } = agg;
     let struct_fields = fields.iter().map(|Field { name, ty }| quote!{
         #name: #ty,
     });
 
     let table_fields = sql_fields(&fields);
 
-    let create_table = format!("\
+    let mut create_table = format!("\
             CREATE TABLE {name} (\n\
                 {fields}\n\
             );\n\
@@ -77,6 +103,29 @@ pub fn expand(agg: Table) -> TokenStream2 {
     let field_name = fields.iter().map(|Field {name, ..}| name);
     let field = fields.iter().map(|Field {name, ..}| name);
 
+
+    let table_insert_function = insert.as_ref().map(|body| {
+        let table_insert = syn::Ident::new(
+            &format!("__table_builder_insert_{}", name),
+            // TODO should this be def_site?
+            body.span(),
+        );
+        let _ = write!(&mut create_table, "\
+            INSERT INTO {table} SELECT * FROM \"{insert_fn}\"();\n\
+            DROP FUNCTION \"{insert_fn}\";\n",
+            table = name,
+            insert_fn = table_insert,
+        );
+        let return_ty = fields.iter().map(|Field {name, ty}| quote! {
+            pgx::name!(#name,#ty)
+        });
+        quote!{
+            // hack b/c this doesn't understand the schema markers
+            #[pg_extern(schema="public")]
+            pub fn #table_insert() -> impl Iterator<Item = (#(#return_ty),*)> #body
+        }
+    });
+
     let create_table_name = format!("__CREATE_TABLE_{}", name);
 
     quote! {
@@ -92,6 +141,9 @@ pub fn expand(agg: Table) -> TokenStream2 {
         mod #mod_name {
             #(#field_types)*
         }
+
+        #[allow(non_snake_case)]
+        #table_insert_function
 
         impl #name {
             pub fn to_values_vec(self) -> Vec<(pgx::PgOid, Option<pgx::pg_sys::Datum>)> {

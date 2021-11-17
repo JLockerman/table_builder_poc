@@ -53,29 +53,18 @@ impl Parse for Select {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let spi_client = input.parse()?;
 
-        validate_marker(input, "from")?;
+        super::validate_marker(input, "from")?;
 
         Self::parse_after_first_marker(input, spi_client)
     }
 }
 
-fn validate_marker(input: ParseStream, expected: &str) -> syn::Result<()> {
-    let field: syn::Ident = input.parse()?;
-    if field != expected {
-        return Err(syn::Error::new(
-            field.span(),
-            format!("expected `{}` found `{}`", expected, field)
-        ))
-    }
-    let _: syn::Token![:] = input.parse()?;
-    return Ok(())
-}
 impl Select {
     pub(crate) fn parse_after_first_marker(input: ParseStream, spi_client: syn::Ident)
     -> syn::Result<Self> {
         let table = input.parse()?;
 
-        validate_marker(input, "select")?;
+        super::validate_marker(input, "select")?;
         let content;
         let _ = syn::parenthesized!(content in input);
         let fields = Punctuated::parse_terminated(&content)?;
@@ -158,7 +147,7 @@ enum Values {
 impl Insert {
     fn parse_after_insert(input: ParseStream, spi_client: syn::Ident)
     -> syn::Result<Self> {
-        validate_marker(input, "into")?;
+        super::validate_marker(input, "into")?;
         let table = input.parse()?;
         let val_marker: syn::Ident = input.parse()?;
         let _: syn::Token![:] = input.parse()?;

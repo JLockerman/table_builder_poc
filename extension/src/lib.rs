@@ -17,6 +17,16 @@ table!{
     )
 }
 
+table!{
+    InsertExample (
+        foo: i32,
+        avg: Option<f32>,
+    )
+    insert: {
+        (0..3).map(|i| (i, Some( i as _)))
+    }
+}
+
 #[cfg(any(test, feature = "pg_test"))]
 #[pg_schema]
 mod tests {
@@ -33,16 +43,19 @@ mod tests {
             key: String,
             value: Option<i32>,
         )
+        insert: {
+            (1000..1010).map(|i| (i.to_string(), Some(i)))
+        }
     }
 
     #[pg_test]
     fn test_query() {
         Spi::connect(|mut client| {
-            let expected = HashMap::from([
-                ("31", Some(31)),
-                ("2", Some(2)),
-                ("", Some(0)),
-                ("foo", Some(111)),
+            let mut expected = HashMap::from([
+                ( "31".to_string(), Some(31)),
+                (  "2".to_string(), Some(2)),
+                (   "".to_string(), Some(0)),
+                ("foo".to_string(), Some(111)),
             ]);
 
             query!(client
@@ -56,10 +69,14 @@ mod tests {
             query!(client
                 insert into: KeyValueTable
                 values: expected.iter().map(|(key, value)| KeyValueTable {
-                    key: key.to_string(),
+                    key: key.clone(),
                     value: value.clone(),
                 })
             );
+
+            for i in 1000..1010 {
+                expected.insert(i.to_string(), Some(i));
+            }
 
             let values = query!(client
                 from: KeyValueTable
